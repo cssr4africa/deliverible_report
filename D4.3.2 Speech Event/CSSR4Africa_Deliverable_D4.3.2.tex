@@ -28,10 +28,6 @@
     keywordstyle=\color[rgb]{0.1, 0.1, 0.8}\bfseries,
     commentstyle=\color[rgb]{0, 0.6, 0}\itshape,
     stringstyle=\color[rgb]{0.7, 0.1, 0.1},
-    numbers=left,
-    numberstyle=\color[rgb]{0.4, 0.4, 0.4}\tiny,
-    stepnumber=1,
-    numbersep=5pt,
     showspaces=false,
     showstringspaces=false,
     showtabs=false,
@@ -607,33 +603,60 @@ The Speech Event ROS node needs to be installed before it can be used. To instal
 \begin{enumerate}
     \item Download ASR model files and move them to the correct directory (skip if you already have the ASR models in the correct directory):
     \begin{lstlisting}[language=bash]
+ # Install git-lfs
+ sudo apt-get update
+ sudo apt-get install git-lfs
  git lfs install
+
+ # Clone CSSR4Africa models repository from Hugging Face
  git clone https://huggingface.co/cssr4africa/cssr4africa_models
+
+ # Move speech event models to the models/ directory
  mv cssr4africa_models/speech_event/models/* $HOME/workspace/pepper_rob_ws/src/cssr4africa/cssr_system/speech_event/models
     \end{lstlisting}
     \item Install required Linux tools:
     \begin{lstlisting}[language=bash]
+ # Install required Linux packages
  sudo apt-get update
  sudo apt-get install cython3 ffmpeg gfortran libopenblas-dev libopenblas64-dev patchelf pkg-config portaudio19-dev python3-testresources python3-tk python3-typing-extensions sox
     \end{lstlisting}
     \item Create a Python virtual environment and install required Python packages (Speech Event has been tested and proven to work using Python3.8): 
     \begin{lstlisting}[language=bash]
+ # Create CSSR4Africa's virtual environments' parent directory if it doesn't exist
  mkdir -p $HOME/workspace/pepper_rob_ws/src/cssr4africa_virtual_envs
+
+ # Change the current working directory to CSSR4Africa's virtual environments' parent directory 
  cd $HOME/workspace/pepper_rob_ws/src/cssr4africa_virtual_envs
+
+ # Create speech event's Python virtual environment
  python3 -m venv cssr4africa_speech_event_env
+
+ # Source the created virtual environment
  source cssr4africa_speech_event_env/bin/activate
+
+ # Install required Python dependencies
  pip install -r $HOME/workspace/pepper_rob_ws/src/cssr4africa/cssr_system/speech_event/speech_event_requirements.txt
     \end{lstlisting}
     \item Build the ROS workspace (it's best to proceed with the next steps on a separate terminal, otherwise an error may arise when running `catkin\_make'):
     \begin{lstlisting}[language=bash]
+ # Change the current working directory to CSSR4Africa's ROS workspace
  cd $HOME/workspace/pepper_rob_ws
+
+ # Build the CSSR4Africa project
  catkin_make
+
+ # Source the CSSR4Africa ROS workspace
  source devel/setup.bash
     \end{lstlisting}
     \item Make application files executable:
     \begin{lstlisting}[language=bash]
+ # Add executable permission flag to speech event's application file
  chmod +x $HOME/workspace/pepper_rob_ws/src/cssr4africa/cssr_system/speech_event/src/speech_event_application.py
+
+ # Add executable permission flag to speech event's test application file
  chmod +x $HOME/workspace/pepper_rob_ws/src/cssr4africa/unit_tests/speech_event_test/src/speech_event_test_application.py
+
+ # Add executable permission flag to speech event's driver file
  chmod +x $HOME/workspace/pepper_rob_ws/src/cssr4africa/unit_tests/speech_event_test/src/speech_event_driver.py
     \end{lstlisting}
 \end{enumerate}
