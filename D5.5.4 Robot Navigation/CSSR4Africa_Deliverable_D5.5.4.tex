@@ -41,8 +41,9 @@
 %%% for listing ;
 % \captionsetup[figure]{format=hang}
 \definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
 \definecolor{greenyellow}{rgb}{0.8, 0.7, 0.10}
-\definecolor{backcolour}{rgb}{0.95,0.95,0.95} 
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
 
 \lstdefinestyle{withoutNumbering}{
     backgroundcolor=\color{backcolour},   
@@ -87,10 +88,10 @@
 \leadpartner{Carnegie Mellon University Africa}  
 \partner{Carnegie Mellon University Africa}  
 
-\revision{1.2}                         
-\deliverabledate{26/02/2025}  
-\submissiondate{26/02/2025} 
-\revisiondate{07/08/2025}  
+\revision{1.3}
+\deliverabledate{26/02/2025}
+\submissiondate{26/02/2025}
+\revisiondate{05/04/2026}  
 \disseminationlevel{PU}
 \responsible{Birhanu Shimelis Girma} 
 
@@ -102,6 +103,10 @@
 \label{executive_summary}
 
 Deliverable D5.5.4 focuses on developing a software module for Robot Navigation, enabling the Pepper robot to autonomously traverse its environment while considering both static and dynamic obstacles. This module integrates path planning algorithms, including Breadth-First Search (BFS), Dijkstra, and A*. Navigation is executed by identifying waypoints along the planned path and controlling the robot's locomotion from waypoint to waypoint.
+
+\noindent The node supports two navigation modes: CAD mode, which uses pre-built maps with internal path planning algorithms, and SLAM mode, which uses the ROS navigation stack (map\_server, AMCL, move\_base) for real-time localization and obstacle avoidance. In SLAM mode, the node automatically launches the required navigation stack components as a subprocess, providing a self-contained navigation solution.
+
+\noindent The node provides both a service-based interface (blocking) and an action-based interface (non-blocking with real-time feedback and goal preemption support). Both interfaces are available simultaneously, allowing client nodes to choose the appropriate communication pattern. When social distance mode is enabled, the passing distance value is read from the \texttt{cultureKnowledgeBaseInput.dat} file in the \texttt{behaviorController} package.
 
 \noindent A key feature of this module is the incorporation of culturally sensitive proxemics, derived from the knowledge base created in \href{https://cssr4africa.github.io/deliverables/CSSR4Africa_Deliverable_D1.2.pdf}{Deliverable D1.2} Rwandan Cultural Knowledge. This functionality ensures that the robot maintains appropriate social distances when navigating around humans, enhancing its adaptability and acceptance in human-centered environments.
 
@@ -252,7 +257,7 @@ The robotNavigation node implements three distinct path planning algorithms, eac
 		\begin{algorithm}[H]
 			\caption{A* Algorithm}
 			\begin{algorithmic}[1]
-				\Function{AStar}{$start, goal, graph, cols, heuristic\_type$}
+				\Function{Astar}{$start, goal, graph, cols, heuristic\_type$}
 				\State Select heuristic function based on $heuristic\_type$
 				\State Initialize $dist$ array with all nodes set to $INFINITY$
 				\State Initialize $predecessor$ array with all nodes set to $-1$
@@ -422,14 +427,19 @@ The source code for executing the robot navigation functionality is structured i
 	\renewcommand*\DTstyle{\ttfamily}
 	\dirtree{%
 		.1 cssr\_system.
+		.2 CMakeLists.txt.
+		.2 package.xml.
 		.2 robotNavigation.
+		.3 action.
+		.4 setGoal.action.
+		.4 setPose.action.
 		.3 config.
 		.4 robotNavigationConfiguration.ini.
 		.3 data.
-		.4 robotTopics.dat.
+		.4 pepperTopics.dat.
 		.4 environmentMap.png.
 		.4 configurationSpaceMap.png.
-		.4 prameters230.dat.
+		.4 parameters230.dat.
 		.4 parameters240.dat.
 		.4 robotPose.dat.
 		.3 include.
@@ -437,14 +447,28 @@ The source code for executing the robot navigation functionality is structured i
 		.5 robotNavigationInterface.h.
 		.3 msg.
 		.4 Goal.msg.
+		.3 slam.
+		.4 config.
+		.5 pepper.rviz.
+		.4 launch.
+		.5 navigation.launch.
+		.4 maps.
+		.5 environmentMap.pgm.
+		.5 environmentMap.yaml.
+		.4 param.
+		.5 move\_base\_params.yaml.
+		.5 costmap\_common\_params.yaml.
+		.5 local\_costmap\_params.yaml.
+		.5 global\_costmap\_params.yaml.
+		.5 base\_local\_planner\_params.yaml.
+		.5 global\_planner\_params.yaml.
 		.3 src.
 		.4 robotNavigationApplication.cpp.
 		.4 robotNavigationImplementation.cpp.
 		.3 srv.
 		.4 setGoal.srv.
-		.3 README.md.
 		.3 CMakeLists.txt.
-		.3 package.xml.
+		.3 README.md.
 	}
 	\caption{File structure of the robotNavigation node}
 	\label{fig:navigation_file_structure}
@@ -467,6 +491,7 @@ The operation of the \verb|robotNavigation| node is determined by the contents o
 \verb|robotTopics| & \verb|pepperTopics.dat| & Sensor/actuator topics for the physical robot. \\ \hline
 \verb|verboseMode| & \verb|true, false| & Enables verbose output with terminal logs and OpenCV displays. \\ \hline
 \verb|robotType| & \verb|new, old| & Enables choosing between the old and new robot in the lab, can be differentiated by IP address. \\ \hline
+\verb|navigationMode| & \verb|CAD, SLAM| & Specifies the navigation mode. CAD uses internal path planning; SLAM launches the ROS navigation stack automatically. \\ \hline
 \end{tabularx}
 \end{table}
 
@@ -519,7 +544,8 @@ This node provides and advertizes a server for a service \verb|/robotNavigation/
 \begin{tabularx}{\textwidth}{|l|l|X|}
 \hline
 \textbf{Service} & \textbf{Message Value} & \textbf{Effect} \\ \hline
-\verb|/robotNavigation/set_goal| & \(<x> <y> <\theta>\) & Define navigation goal pose. \\ \hline
+\verb|/robotNavigation/set_goal| & \(<x> <y> <\theta>\) & Define navigation goal pose. Returns ``1'' on success, ``0'' on failure. \\ \hline
+\verb|/robotNavigation/set_pose| & \(<x> <y> <\theta>\) & Set the robot pose. In SLAM mode, publishes to the AMCL initialpose topic. \\ \hline
 \end{tabularx}
 \end{table}
 
@@ -541,6 +567,25 @@ knowledge base \\ \hline
 
 
 \noindent The type of variable that is passed as an argument to the \verb|/knowledgeBase/query| service has not yet been defined. This will be done when the node that services and advertizes these services are fully specified. Similarly, the type of service call return value has not yet been defined. Again, this will be done when the node that services and advertizes these services are fully specified
+
+\subsection*{Actions Supported}
+In addition to the service interface, the node provides an action-based interface for non-blocking navigation with real-time feedback and goal preemption support. Both action servers are available simultaneously alongside the service servers. The actions supported are summarized in Table~\ref{tab:actions supported}.
+
+\begin{table}[H]
+\centering
+\caption{Actions Provided by the robotNavigation node.}
+\label{tab:actions supported}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Action} & \textbf{Type} & \textbf{Description} \\ \hline
+\verb|/robotNavigation/set_goal| & \verb|cssr_system/setGoalAction| & Navigate to a goal pose with feedback and preemption. \\ \hline
+\verb|/robotNavigation/set_pose| & \verb|cssr_system/setPoseAction| & Set the robot pose with status feedback. \\ \hline
+\end{tabularx}
+\end{table}
+
+\noindent The \verb|setGoal| action accepts a goal pose ($x$, $y$, $\theta$) and returns the navigation result along with the final robot pose. During execution, the action server publishes periodic feedback containing the distance remaining to the goal and the current robot pose. The action can be preempted (cancelled) by the client at any time.
+
+\noindent The \verb|setPose| action accepts a pose ($x$, $y$, $\theta$) and sets the robot's position. In SLAM mode, the pose is forwarded to the AMCL initialpose topic. The action provides status feedback during execution.
 
 \newpage
 
@@ -585,7 +630,7 @@ ls ~/workspace/pepper_rob_ws/src/cssr4Africa/cssr_system/robotNavigation
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth]{Images/navigation_folder.png}
+    \includegraphics[width=\linewidth]{Images/navigationFolder.png}
     \caption{Screenshot of expected output showing the files and folders in the robotNavigation node from the executed command}
     \label{fig:sample robot navigation folder structure}
 \end{figure}
@@ -609,7 +654,7 @@ This will initialize the navigation system and display status messages indicatin
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth]{Images/rosrun_navigation.png}
+    \includegraphics[width=\linewidth]{Images/rosrun_navigation_CAD.png}
     \caption{Screenshot of the output of running the robotNavigation node.}
     \label{fig:rosrun_navigation}
 \end{figure}
@@ -649,6 +694,32 @@ If the navigation is successful, a confirmation message will be displayed.
     \label{fig:set_goal}
 \end{figure}
 
+\subsubsection*{Sending a Goal via Action}
+The action interface provides non-blocking navigation with real-time feedback. To send a goal via the action interface:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rostopic pub -1 /robotNavigation/set_goal/goal cssr_system/setGoalActionGoal
+  "goal: {goal_x: 2.0, goal_y: 6.0, goal_theta: 270.0}"
+\end{lstlisting}
+To monitor feedback during navigation:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rostopic echo /robotNavigation/set_goal/feedback
+\end{lstlisting}
+To cancel an active navigation goal:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rostopic pub -1 /robotNavigation/set_goal/cancel actionlib_msgs/GoalID "{}"
+\end{lstlisting}
+
+\subsubsection*{Setting Robot Pose}
+To set the robot's pose via the service interface while \verb|robotNavigation| node is running in SLAM mode:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rosservice call /robotNavigation/set_pose 2.0 7.8 270.0
+\end{lstlisting}
+To set the robot's pose via the action interface:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rostopic pub -1 /robotNavigation/set_pose/goal cssr_system/setPoseActionGoal
+  "goal: {pose_x: 2.0, pose_y: 7.8, pose_theta: 270.0}"
+\end{lstlisting}
+
 \newpage
 \section{Unit Test}
 %===============================================================
@@ -665,6 +736,7 @@ The \verb|robotNavigation| node comprises several key operations, including path
 		.3 config.
 		.4 robotNavigationTestConfiguration.ini.
 		.3 data.
+		.4 actionNavigationInput.dat.
 		.4 astarAlgorithmInput.dat.
 		.4 bfsAlgorithmInput.dat.
 		.4 boundaryTestInput.dat.
@@ -697,10 +769,10 @@ The \verb|robotNavigation| node comprises several key operations, including path
 	\label{fig:navigation_test_structure}
 \end{figure}
 
-\noindent The \texttt{robotNavigationTest} folder is structured to support unit testing of the Robot Navigation unit test Node. The \texttt{src} directory contains \texttt{robotNavigationDriver.cpp}, which serves as the driver for test execution, \texttt{robotNavigationTestApplication.cpp}, which manages the test flow, and \texttt{robotNavigationTestImplementation.cpp}, which provides the core test logic.\\
+\noindent The \texttt{robotNavigationTest} folder is structured to support unit testing of the \verb|robotNavigation| unit test Node. The \texttt{src} directory contains \texttt{robotNavigationDriver.cpp}, which serves as the driver for test execution, \texttt{robotNavigationTestApplication.cpp}, which manages the test flow, and \texttt{robotNavigationTestImplementation.cpp}, which provides the core test logic.\\
 
 
-\noindent The \texttt{config} directory houses the \texttt{robotNavigationTestConfiguration.ini} file, which defines test parameters such as goal positions and navigation constraints, allowing customization of test cases. The \texttt{data} folder contains \texttt{navigationServiceInput.dat}, \texttt{astarAlgorithmInput.dat}, \texttt{bfsAlgorithmInput.dat}, \texttt{boundaryTestInput.dat}, \texttt{dijkstraAlgorithmInput.dat} which stores predefined navigation goals for the tests, and \texttt{navigationUnitTestLogs.log}, which captures the test execution logs, recording timestamps and goal completion statuses for debugging and validation.
+\noindent The \texttt{config} directory houses the \texttt{robotNavigationTestConfiguration.ini} file, which defines test parameters such as goal positions and navigation constraints, allowing customization of test cases. The \texttt{data} folder contains \texttt{actionNavigationInput.dat}, \texttt{navigationServiceInput.dat}, \texttt{astarAlgorithmInput.dat}, \texttt{bfsAlgorithmInput.dat}, \texttt{boundaryTestInput.dat}, \texttt{dijkstraAlgorithmInput.dat} which stores predefined navigation goals for the tests, and \texttt{robotNavigationTestOutput.dat}, which captures the test execution logs and outputs, recording timestamps and goal completion statuses for debugging and validation.
 
 
 
@@ -741,25 +813,63 @@ source devel/setup.bash
 The test cases evaluate the ability of the \texttt{robotNavigation} node to process navigation requests and reach predefined goals.
 
 \begin{enumerate}
-    \item SetGoalServiceAvailable: Verifies that the \texttt{/robotNavigation/set\_goal} service is available before sending navigation commands.
-    \item SendNavigationGoalFromFile: Reads a list of predefined goals from the \texttt{test\_goals.dat} file and sends them sequentially. The robot's response is validated against expected success values.
+    \item \textbf{TestPathPlanningBfs}: Validates BFS path planning algorithm via service call with test scenarios from \texttt{bfsAlgorithmInput.dat}.
+    \item \textbf{TestPathPlanningDijkstra}: Validates Dijkstra path planning algorithm via service call with test scenarios from \texttt{dijkstraAlgorithmInput.dat}.
+    \item \textbf{TestPathPlanningAstar}: Validates A* path planning algorithm via service call with test scenarios from \texttt{astarAlgorithmInput.dat}.
+    \item \textbf{TestBoundaryConditions}: Validates rejection of out-of-bounds and unreachable goals using scenarios from \texttt{boundaryTestInput.dat}.
+    \item \textbf{TestNavigationService}: Validates the navigation service interface with goals from \texttt{navigationServiceInput.dat}.
+    \item \textbf{TestAlgorithmComparison}: Compares execution time across BFS, Dijkstra, and A* algorithms on the same navigation scenario.
+    \item \textbf{TestActionNavigation}: Validates navigation goal execution via the action interface with scenarios from \texttt{actionNavigationInput.dat}.
+    \item \textbf{TestActionFeedback}: Verifies that real-time feedback fields (distance remaining, current pose) are published during action-based navigation.
+    \item \textbf{TestActionPreemption}: Verifies that an active navigation goal can be cancelled via the action cancel mechanism.
+    \item \textbf{TestSetPose}: Validates pose setting via both the service and action interfaces.
 \end{enumerate}
 
 \subsection{Executing the Robot Navigation Unit Test}
-To start the unit test, use the following command:
-
+To start the unit test, there are two approaches, using rosrun or using roslaunch. If you use the rosrun command, execute it as follows, and make sure both \verb|robotLocalization| and \verb|robotNavigation| nodes are running. If they are not already running use the following commands in two separate terminals.
+In Terminal 1:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+cd ~/workspace/pepper_rob_ws
+\end{lstlisting}
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rosrun cssr_system robotLocalization
+\end{lstlisting}
+In Terminal 2:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+cd ~/workspace/pepper_rob_ws
+\end{lstlisting}
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+rosrun cssr_system robotNavigation
+\end{lstlisting}
+In Terminal 3:
 \begin{lstlisting}[style=withoutNumbering, language=bash]
 cd ~/workspace/pepper_rob_ws
 \end{lstlisting}
 \begin{lstlisting}[style=withoutNumbering, language=bash]
 rosrun unit_tests robotNavigationTest
 \end{lstlisting}
-Upon execution, the test sequence is initiated, and results are logged in the \texttt{navigationUnitTestLogs.log} file.
+Upon execution, the test sequence is initiated, and results are logged in the \texttt{robotNavigationTestOutput.dat} file. If the two nodes are not running properly before the Unit test command is executed you will see the following output on the terminal, waiting for the node to run and publish proper topics and services.
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth]{Images/unit-test-terminal.png}
-    \caption{Screenshot of the unit test command running.}
-    \label{fig:unit_test_terminal}
+    \includegraphics[width=\linewidth]{Images/rosrun_navigation_test.png}
+    \caption{Screenshot of the unit test command running and requesting for the set\_goal service to be available.}
+    \label{fig:unit_test_rosrun_terminal}
+\end{figure}
+
+\noindent If you follow the roslaunch approach, execute the following commands.\\
+In Terminal 1:
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+cd ~/workspace/pepper_rob_ws
+\end{lstlisting}
+\begin{lstlisting}[style=withoutNumbering, language=bash]
+roslaunch unit_tests robotNavigationTestLaunchTestHarness.launch
+\end{lstlisting}
+Upon execution, the test sequence is initiated, and results are logged in the \texttt{robotNavigationTestOutput.dat} file. here is the sample output from the terminal.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=\linewidth]{Images/roslaunch_navigation_test.png}
+	\caption{Screenshot of the unit test command running through roslaunch.}
+	\label{fig:unit_test_roslaunch_terminal}
 \end{figure}
 
 \subsection{Test Results}
@@ -883,6 +993,19 @@ Birhanu Shimelis Girma, Carnegie Mellon University Africa.
 	Updated the commands as well following the change in service name and updated it in the body. \\
 	Birhanu Shimelis Girma. \\
 	07 August 2025.
+
+	\item [Version 1.3]~\\
+	Combined service-based and action-based navigation into a single node providing both interfaces simultaneously. \\
+	Added action definitions (setGoal.action, setPose.action) with goal, result, and feedback messages. \\
+	Added SLAM navigation mode with automatic launch of the ROS navigation stack (map\_server, AMCL, move\_base, RViz) as a subprocess. \\
+	Integrated SLAM configuration files into the robotNavigation node under the slam/ subdirectory. \\
+	Added passingDistance reading from cultureKnowledgeBaseInput.dat when socialDistance mode is enabled. \\
+	Added navigationMode parameter to the configuration file. \\
+	Updated file organization diagram, services supported table, and added actions supported table. \\
+	Added action-based interaction commands and pose setting commands. \\
+	Updated unit test suite from 6 to 10 test cases, adding action navigation, feedback, preemption, and set pose tests. \\
+	Birhanu Shimelis Girma. \\
+	05 April 2026.
 
 \end{description}
 
