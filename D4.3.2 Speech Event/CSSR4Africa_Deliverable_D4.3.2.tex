@@ -39,19 +39,24 @@
     columns=fullflexible,
 }
 
-\usepackage{titlesec}
-\titleclass{\subsubsubsection}{straight}[\subsection]
-\newcounter{subsubsubsection}[subsubsection]
-\renewcommand\thesubsubsubsection{\thesubsubsection.\arabic{subsubsubsection}}
-\titleformat{\subsubsubsection}{\normalfont\normalsize\itshape}{\thesubsubsubsection}{1em}{}
-\titlespacing*{\subsubsubsection}{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+% Redefine the standard \paragraph command (already part of LaTeX, unlike
+% titlesec's custom \subsubsubsection) as a numbered, own-line 4th-level
+% heading, so we get the same visual result without loading titlesec (which
+% corrupts \thetitle once sectioning starts -- see git history for details).
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{0pt}%
+  {3.25ex \@plus1ex \@minus.2ex}%
+  {1em}%
+  {\normalfont\normalsize\itshape}}
+\makeatother
+\renewcommand\theparagraph{\thesubsubsection.\arabic{paragraph}}
 \setcounter{secnumdepth}{4}
 \setcounter{tocdepth}{4}
 
 \usepackage{titletoc}
 
-% Correct formatting for subsubsubsection in TOC
-\titlecontents{subsubsubsection}
+% Correct formatting for paragraph (4th-level heading) in TOC
+\titlecontents{paragraph}
   [10.0em]             % Left indentation (adjust to align with your document class)
   {\small}            % Above-code (font style for the entry)
   {\contentslabel{4.0em}} % Numbered entry format (number box width)
@@ -89,7 +94,6 @@
 %%
 
 \maketitle
- 
 
 \section*{Executive Summary}
 %===============================================================
@@ -388,7 +392,7 @@ Both the Kinyarwanda and English speech recognition processes performed by Speec
 \subsubsection{Conformer Transducer Large}
 The conformer transducer architecture is made up of a conformer encoder and a transducer decoder. The conformer encoder combines transformers and Convolution Neural Networks (CNNs) in an attempt to utilise the strengths of both, with transformers excelling at capturing global dependencies of an audio signal while CNNs excel at capturing local dependencies of an audio signal \cite{gulati_conformer_2020}. The transducer decoder, on the other hand, makes use of Recurrent Neural Networks (RNNs) to form an auto-regressive model whose next token prediction is conditioned on the previously predicted tokens.
 
-\subsubsubsection{Preprocessor}
+\paragraph{Preprocessor}
 When an audio signal is received, it is first passed through a preprocessor block that extracts filterbank features from the audio signal. For this process, an audio signal is first converted to a spectrogram by a Short Time Fourier Transform (STFT), and then a series of filters is applied to the resultant spectrogram to obtain the filterbank features that each represent the magnitude of the energy within a distinct frequency band. This preprocessor block is visualised in Fig \ref{fig:preprocessor}.
 
 \begin{figure}[thb]
@@ -405,7 +409,7 @@ When an audio signal is received, it is first passed through a preprocessor bloc
 \end{figure}
 
 \newpage
-\subsubsubsection{Encoder Architecture}
+\paragraph{Encoder Architecture}
 The filterbank features obtained from the preprocessor block are then passed to the encoder part of the model. The encoder transforms acoustic features in the original audio signal captured within the filterbank features into latent features that better represent the speech in the original audio signal.
 
 A conformer encoder is shown in Fig \ref{fig:conformer-encoder}. The encoder used in Speech Event has 17 conformer blocks.
@@ -470,7 +474,7 @@ The features are then processed by a convolution subsampling block, dropout appl
 Each confomer block consists of a multi-head self-attention module and a convolution module collectively sandwiched between two feedforward modules \cite{gulati_conformer_2020}. The self-attention module is more adept at capturing global feature dependencies, while the convolution module is more adept at capturing local feature dependencies, thereby capturing the semantics of speech utterances much better than models that only specialise in capturing only one of either the global or local feature dependencies.
 
 \newpage
-\subsubsubsection{Decoder/Prediction Network Architecture}
+\paragraph{Decoder/Prediction Network Architecture}
 Keeping in line with Gulati et al., a single LSTM layer is used in the decoder \cite{gulati_conformer_2020}. An embedding layer converts input tokens into vectorised representations that are then passed to the LSTM layer. Additionally, drop out is applied both in the LSTM layer and on the output of the LSTM layer.
 
 The decoder architecture is shown in Fig \ref{fig:transducer-decoder}.
@@ -493,7 +497,7 @@ The decoder architecture is shown in Fig \ref{fig:transducer-decoder}.
 \end{figure}
 
 \newpage
-\subsubsubsection{Joint Network Architecture}
+\paragraph{Joint Network Architecture}
 The joint network combines the output of the encoder and the output of the decoder in order to predict the text in the speech utterances contained in the original sound signal passed to the encoder. The combined outputs are then passed through a ReLU activation, dropout is applied, and lastly passed through a linear layer.
 
 The joint network architecture is shown in Fig \ref{fig:joint}.
@@ -522,7 +526,7 @@ The joint network architecture is shown in Fig \ref{fig:joint}.
 \label{fig:joint}
 \end{figure}
 
-\subsubsubsection{Combined Model Architecture}
+\paragraph{Combined Model Architecture}
 The four different sections of the full conformer transducer architecture discussed above are combined together to form the whole network that performs end-to-end automatic speech recognition. This full model's architecture is summaried in Fig \ref{fig:combined}.
 
 \begin{figure}[thb]
@@ -548,10 +552,10 @@ The four different sections of the full conformer transducer architecture discus
 \subsubsection{Parakeet TDT-CTC 110M}
 Parakeet TDT-CTC (Token-and-Duration Transducer and Connectionist Temporal Classification) is a family of models that improves on the conformer trasducer architecture, replacing the conformer encoder with a fast confomer encoder \cite{rekesh2023fastconformerlinearlyscalable} for faster inference (2.8 times faster than conformer), and employing the use of TDT \cite{xu2023efficientsequencetransductionjointly} which facilitates joint prediction of both tokens and their durations that enables the model to have faster inference times (upto 2.82 times faster) and higher accuracy than transducer-based models.
 
-\subsubsubsection{Preprocessor}
+\paragraph{Preprocessor}
 When an audio signal is received, it is first passed through a preprocessor block that extracts Mel spectrogram features from the audio signal. This preprocessor block is similar to the conformer transducer's preprocessor block that is visualised in Fig \ref{fig:preprocessor}.
 
-\subsubsubsection{Encoder Architecture}
+\paragraph{Encoder Architecture}
 The Mel spectrogram features obtained from the preprocessor block are then passed to the encoder part of the model. The encoder transforms acoustic features in the original audio signal captured within the Mel spectrogram features into latent features that better represent the speech in the original audio signal. However, unlike the conformer blocks used in the conformer transducer, fast conformer blocks are used instead. Fast conformer blocks have the following improvements over conformer blocks, copied verbatim from \cite{rekesh2023fastconformerlinearlyscalable}:
 
 \begin{enumerate}
@@ -563,13 +567,13 @@ The Mel spectrogram features obtained from the preprocessor block are then passe
 
 Extra modifications have also been applied to enable fast conformer encoders process very long speech utterances. These modifications see the fast conformer combine local attention with a global context token to process very long speech utterances.
 
-\subsubsubsection{Decoder/Prediction Network Architecture}
+\paragraph{Decoder/Prediction Network Architecture}
 The decoder architecture used by Parakeet TDT-CTC is similar to that used by the conformer transducer model, as shown in Fig \ref{fig:transducer-decoder}.
 
-\subsubsubsection{CTC Decoder}
+\paragraph{CTC Decoder}
 This is an extra decoder that projects the encoder's output directly to the vocabulary size and therefore providing additional supervision during training. Speech Event does not use this component during inference.
 
-\subsubsubsection{Joint Network Architecture}
+\paragraph{Joint Network Architecture}
 As in the conformer transducer model, the joint network combines the output of the encoder and the output of the decoder in order to predict the text in the speech utterances contained in the original sound signal passed to the encoder. However, unlike the joint network used in the conformer transducer model, parakeet TDT-CTC emits two outputs: one for the output token, and the other for the duration of the token. \cite{xu2023efficientsequencetransductionjointly}
 
 The joint network workings are shown in Fig \ref{fig:TDT-joint}.
@@ -597,7 +601,7 @@ The joint network workings are shown in Fig \ref{fig:TDT-joint}.
 \label{fig:TDT-joint}
 \end{figure}
 
-\subsubsubsection{Combined Model Architecture}
+\paragraph{Combined Model Architecture}
 The four different sections of the full Parakeet TDT-CTC architecture discussed above are combined together to form the whole network that performs end-to-end automatic speech recognition. This full model's architecture is summaried in Fig \ref{fig:parakeet-combined}.
 
 \begin{figure}[thb]
